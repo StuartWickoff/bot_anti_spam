@@ -26,6 +26,12 @@ class SpamDetector:
             r"(\d{1,4}(?:[.,\s]?\d{3})*(?:[.,]\d{1,2})?)\s*(?:€|\$|euros?|dollars?|eur|usd)?",
             re.IGNORECASE | re.DOTALL,
         )
+        self.gain_claim_pattern = re.compile(
+            r"(?:gagne|profit|benefice|recolte|obtenu).*?"
+            r"(\d{1,4}(?:[.,\s]?\d{3})*(?:[.,]\d{1,2})?)\s*(?:€|\$|euros?|dollars?|eur|usd)"
+            r"(?:.*?(?:benefice|profit|gain))?",
+            re.IGNORECASE | re.DOTALL,
+        )
         self.emoji_spam = re.compile(r"(👇|⬇️|👈|👉|⤵){3,}")
         self.suspicious_links = re.compile(r"t\.me/[^\s]+")
         self.trader_mention = re.compile(r"@[A-Z_]+(?:FX|TRADER|TRADE|CRYPTO|SIGNAL|INVEST)", re.IGNORECASE)
@@ -37,6 +43,11 @@ class SpamDetector:
         text = unicodedata.normalize("NFD", text.lower())
         text = "".join(char for char in text if unicodedata.category(char) != "Mn")
         return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", " ", text)).strip()
+
+    @staticmethod
+    def _normalize_for_money(text: str) -> str:
+        text = unicodedata.normalize("NFD", text.lower())
+        return "".join(char for char in text if unicodedata.category(char) != "Mn")
 
     @staticmethod
     def _parse_money(value: str) -> float:
@@ -59,7 +70,7 @@ class SpamDetector:
                 category_count += 1
                 reasons.append(f"Catégorie {category}")
 
-        gain_match = self.money_pattern.search(text)
+        gain_match = self.money_pattern.search(self._normalize_for_money(text))
         unrealistic = False
         if gain_match:
             invested = self._parse_money(gain_match.group(1))
@@ -67,6 +78,9 @@ class SpamDetector:
             unrealistic = invested > 0 and profit > invested * 4
             if unrealistic:
                 reasons.append(f"Gains irréalistes x{profit / invested:.1f}")
+        elif self.gain_claim_pattern.search(self._normalize_for_money(text)):
+            unrealistic = True
+            reasons.append("Gain financier suspect")
 
         structural_score = 0
         if self.emoji_spam.search(text):
