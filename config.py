@@ -33,10 +33,16 @@ class Config:
 
     @staticmethod
     def _parse_int_list(value: str) -> List[int]:
-        try:
-            return [int(item.strip()) for item in value.split(",") if item.strip()]
-        except ValueError:
-            return []
+        result = []
+        for item in value.split(","):
+            item = item.strip()
+            if not item:
+                continue
+            try:
+                result.append(int(item))
+            except ValueError as exc:
+                raise ValueError(f"ADMIN_IDS invalide : '{item}' n'est pas un entier") from exc
+        return result
 
     def _validate(self) -> None:
         errors = []
