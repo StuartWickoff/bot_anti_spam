@@ -1,0 +1,1 @@
+"""Nouvelle architecture modulaire de GorilleBot."""

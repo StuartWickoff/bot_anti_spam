@@ -1,0 +1,15 @@
+[Unit]
+Description=GorilleBot Anti-Spam Telegram
+After=network.target
+
+[Service]
+Type=simple
+User=david
+WorkingDirectory=/home/david/Desktop/bot_telegram
+ExecStart=/home/david/Desktop/bot_telegram/myenv/bin/python main.py
+Restart=on-failure
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

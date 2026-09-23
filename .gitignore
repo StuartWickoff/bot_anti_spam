@@ -1,0 +1,126 @@
+# .gitignore - GorilleBot Security
+
+# ============================================
+# SECRETS (JAMAIS commiter)
+# ============================================
+.env
+.env.local
+*.key                    # Clés privées
+*.pem                    # Certificats
+
+# ============================================
+# DONNÉES (Locales au serveur)
+# ============================================
+data/
+logs/
+backups/
+*.db                     # Fichiers SQLite
+*.sqlite3
+
+# ============================================
+# CACHE & TEMP
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ============================================
+# IDE & ÉDITEURS
+# ============================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# ============================================
+# VIRTUALENV
+# ============================================
+venv/
+myenv/
+ENV/
+env/
+.venv
+venv.bak/
+env.bak/
+
+# ============================================
+# OS
+# ============================================
+.DS_Store
+Thumbs.db
+*.lnk
+ehthumbs.db
+
+# ============================================
+# LOGS & RAPPORTS
+# ============================================
+*.log
+*.log.*
+cron.log
+startup.log
+error.log
+
+# ============================================
+# BACKUP & SYNC
+# ============================================
+logs_backup/
+*.zip
+*.tar.gz
+*.bak
+*.orig
+
+# ============================================
+# TESTS
+# ============================================
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ============================================
+# FICHIERS TEMPORAIRES
+# ============================================
+*.tmp
+*.temp
+*.lock
+.lock
+.swp
+*._*
+
+# ============================================
+# SPÉCIFIQUE AU PROJET
+# ============================================
+bot.pid                  # PID file pour health check
+rapport_*.txt            # Rapports générés
+daily_*.html             # Rapports HTML
+test_results/
+
+# ============================================
+# NE PAS IGNORER (important!)
+# ============================================
+!.gitkeep
+!requirements.txt
