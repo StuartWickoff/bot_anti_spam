@@ -27,9 +27,14 @@ class SpamDetector:
             re.IGNORECASE | re.DOTALL,
         )
         self.gain_claim_pattern = re.compile(
+            r"(?:"
             r"(?:gagne|profit|benefice|recolte|obtenu).*?"
-            r"(\d{1,4}(?:[.,\s]?\d{3})*(?:[.,]\d{1,2})?)\s*(?:€|\$|euros?|dollars?|eur|usd)"
-            r"(?:.*?(?:benefice|profit|gain))?",
+            r"\d{1,4}(?:[.,\s]?\d{3})*(?:[.,]\d{1,2})?\s*(?:€|\$|euros?|dollars?|eur|usd)"
+            r"(?:.*?(?:benefice|profit|gain))?"
+            r"|"
+            r"\d{1,4}(?:[.,\s]?\d{3})*(?:[.,]\d{1,2})?\s*(?:€|\$|euros?|dollars?|eur|usd)"
+            r".*?(?:benefice|profit|gain|gagne|recolte|obtenu)"
+            r")",
             re.IGNORECASE | re.DOTALL,
         )
         self.emoji_spam = re.compile(r"(👇|⬇️|👈|👉|⤵){3,}")

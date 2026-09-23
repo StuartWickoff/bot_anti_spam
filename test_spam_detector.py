@@ -18,6 +18,7 @@ class SpamDetectorTests(unittest.TestCase):
         cases = {
             "J'ai dépensé 100€ et récolté 1000€": 75,
             "Il a gagné 500€ de bénéfice": 75,
+            "J'ai fait 2000€ de profit avec ce trader": 75,
             "Rejoignez sa chaîne t.me/arnaque": 50,
         }
         for text, minimum_score in cases.items():
