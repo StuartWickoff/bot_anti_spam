@@ -187,7 +187,7 @@ class TelegramAntiSpamBot:
             application.add_handler(CommandHandler("health", admin.health))
             application.add_handler(CommandHandler("errors", admin.errors))
             application.add_handler(CallbackQueryHandler(self.review_handler.handle_callback, pattern=r"^review_(ban|safe)_\d+$"))
-            media_filters = filters.PHOTO | filters.VIDEO | filters.DOCUMENT | filters.ANIMATION | filters.STICKER
+            media_filters = filters.PHOTO | filters.VIDEO | filters.Document.ALL | filters.ANIMATION | filters.Sticker.ALL
             application.add_handler(MessageHandler((filters.TEXT & ~filters.COMMAND) | media_filters, self.handle_message))
             application.add_error_handler(self.error_handler)
             if self.config.REVIEW_ENABLED and application.job_queue:
