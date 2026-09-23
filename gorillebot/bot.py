@@ -1,5 +1,7 @@
+import fcntl
 import logging
 import logging.handlers
+import os
 from collections import deque
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +26,26 @@ class TelegramAntiSpamBot:
         self.review_handler = ReviewHandler(config, self.logger, self.database)
         self.processed_ids = deque(maxlen=1000)
         self.started_at = datetime.now()
+        self._lock_file = None
+
+    def _acquire_instance_lock(self) -> None:
+        lock_path = Path(self.config.DB_PATH).parent / "gorillebot.lock"
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock_file = lock_path.open("w")
+        try:
+            fcntl.flock(self._lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            self._lock_file.close()
+            self._lock_file = None
+            raise RuntimeError("Une autre instance de GorilleBot tourne déjà.") from exc
+        self._lock_file.write(str(os.getpid()))
+        self._lock_file.flush()
+
+    def _release_instance_lock(self) -> None:
+        if self._lock_file:
+            fcntl.flock(self._lock_file.fileno(), fcntl.LOCK_UN)
+            self._lock_file.close()
+            self._lock_file = None
 
     def _configure_logging(self):
         Path(self.config.LOG_DIR).mkdir(parents=True, exist_ok=True)
@@ -55,7 +77,10 @@ class TelegramAntiSpamBot:
         is_spam, reasons, score = self.detector.is_spam(text)
         action = "none"
         ai_result = None
-        if message.video or message.document or message.animation or message.sticker:
+        if score >= 80:
+            banned = await self._process_spam(message, user, chat, reasons, context)
+            action = "ban" if banned else "ban_failed"
+        elif message.video or message.document or message.animation or message.sticker:
             ai_result = {"is_spam": True, "confidence": 0.6, "reason": "Média non analysable automatiquement"}
             if self.config.REVIEW_ENABLED:
                 reviewed = await self._send_to_review(message, user, chat, ai_result, context)
@@ -67,9 +92,6 @@ class TelegramAntiSpamBot:
                 except Exception:
                     self.logger.exception("Échec suppression du média non analysable")
                     action = "unsupported_media_failed"
-        elif score >= 80:
-            banned = await self._process_spam(message, user, chat, reasons, context)
-            action = "ban" if banned else "ban_failed"
         elif self.config.AI_ENABLED and self._should_use_ai(text, message):
             image = None
             if message.photo:
@@ -80,14 +102,26 @@ class TelegramAntiSpamBot:
                     self.logger.exception("Échec téléchargement de l'image")
                     action = "image_download_failed"
             ai_result = await self.ai_analyzer.analyze(text, image)
-            if ai_result["is_spam"] and ai_result["confidence"] >= self.config.AI_CONFIDENCE_THRESHOLD:
+            if ai_result["status"] != "ok":
+                reasons.append(ai_result["reason"])
+                if self.config.REVIEW_ENABLED and (message.photo or score > 0 or self._should_use_ai(text, message)):
+                    fallback = {
+                        "is_spam": True,
+                        "confidence": 0.6,
+                        "reason": f"Vérification humaine requise : IA indisponible ({ai_result['reason']})",
+                    }
+                    reviewed = await self._send_to_review(message, user, chat, fallback, context)
+                    action = "review" if reviewed else "review_failed"
+                else:
+                    action = "ai_unavailable"
+            elif ai_result["is_spam"] and ai_result["confidence"] >= self.config.AI_CONFIDENCE_THRESHOLD:
                 banned = await self._process_spam(message, user, chat, [ai_result["reason"]], context)
                 action = "ban" if banned else "ban_failed"
             elif ai_result["is_spam"] and ai_result["confidence"] >= 0.6 and self.config.REVIEW_ENABLED:
                 reviewed = await self._send_to_review(message, user, chat, ai_result, context)
                 action = "review" if reviewed else "review_failed"
         all_reasons = reasons + ([ai_result["reason"]] if ai_result else [])
-        final_spam = action in {"ban", "review", "ban_failed", "review_failed"}
+        final_spam = action in {"ban", "review"}
         await self.database.log_message(
             user.id, user.username or "", user.first_name or "", chat.id, text,
             final_spam, all_reasons, action, score,
@@ -121,16 +155,18 @@ class TelegramAntiSpamBot:
 
     async def _send_to_review(self, message, user, chat, ai_result, context) -> bool:
         try:
-            try:
-                await message.delete()
-            except Exception:
-                self.logger.exception("Échec suppression message pour review %s", user.id)
             display_user = f"@{user.username}" if user.username else user.first_name or "Inconnu"
             content = message.text or message.caption or "[Média non textuel]"
-            await self.review_handler.send_review_message(
+            review_message_id = await self.review_handler.send_review_message(
                 context, chat.id, user.id, display_user, content,
                 ai_result["reason"], ai_result["confidence"],
             )
+            if review_message_id is None:
+                return False
+            try:
+                await message.delete()
+            except Exception:
+                self.logger.exception("Échec suppression message original après création review %s", user.id)
             return True
         except Exception:
             self.logger.exception("Erreur lors de la création de la review")
@@ -143,15 +179,19 @@ class TelegramAntiSpamBot:
         del errors[:-10]
 
     def run(self) -> None:
-        application = (ApplicationBuilder().token(self.config.BOT_TOKEN).post_init(self.post_init).post_shutdown(self.post_shutdown).build())
-        admin = AdminHandler(self.config, self.database, self.started_at, self.logger, self.review_handler)
-        application.add_handler(CommandHandler("stats", admin.stats))
-        application.add_handler(CommandHandler("health", admin.health))
-        application.add_handler(CommandHandler("errors", admin.errors))
-        application.add_handler(CallbackQueryHandler(self.review_handler.handle_callback, pattern=r"^review_(ban|safe)_\d+$"))
-        media_filters = filters.PHOTO | filters.VIDEO | filters.DOCUMENT | filters.ANIMATION | filters.STICKER
-        application.add_handler(MessageHandler((filters.TEXT & ~filters.COMMAND) | media_filters, self.handle_message))
-        application.add_error_handler(self.error_handler)
-        if self.config.REVIEW_ENABLED and application.job_queue:
-            application.job_queue.run_repeating(self.review_handler.check_expired_reviews, interval=3600, first=3600)
-        application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+        self._acquire_instance_lock()
+        try:
+            application = (ApplicationBuilder().token(self.config.BOT_TOKEN).post_init(self.post_init).post_shutdown(self.post_shutdown).build())
+            admin = AdminHandler(self.config, self.database, self.started_at, self.logger, self.review_handler)
+            application.add_handler(CommandHandler("stats", admin.stats))
+            application.add_handler(CommandHandler("health", admin.health))
+            application.add_handler(CommandHandler("errors", admin.errors))
+            application.add_handler(CallbackQueryHandler(self.review_handler.handle_callback, pattern=r"^review_(ban|safe)_\d+$"))
+            media_filters = filters.PHOTO | filters.VIDEO | filters.DOCUMENT | filters.ANIMATION | filters.STICKER
+            application.add_handler(MessageHandler((filters.TEXT & ~filters.COMMAND) | media_filters, self.handle_message))
+            application.add_error_handler(self.error_handler)
+            if self.config.REVIEW_ENABLED and application.job_queue:
+                application.job_queue.run_repeating(self.review_handler.check_expired_reviews, interval=3600, first=3600)
+            application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+        finally:
+            self._release_instance_lock()

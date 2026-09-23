@@ -9,8 +9,8 @@ class SpamDetector:
             r"ami en ligne.*recommande", r"pensais.*etait.*arnaque", r"tenter.*coup",
             r"realise.*benefice", r"partager.*experience", r"rejoignez.*chaine",
             r"en seulement.*heures", r"tout fonctionne parfaitement", r"retrouvez.*chaine",
-            r"decide.*tenter.*chance", r"petit capital.*depart", r"j'ai recolte",
-            r"c'est vraiment passionnant", r"signaux gratuits", r"robot trading|ia trading|copy trading",
+            r"decide.*tenter.*chance", r"petit capital.*depart", r"j ai recolte",
+            r"c est vraiment passionnant", r"signaux gratuits", r"robot trading|ia trading|copy trading",
             r"lien en prive|contacte.*en prive", r"ci dessous.*chaine", r"pour plus d.*infos",
             r"resultat garanti", r"methode infaillible",
         ]

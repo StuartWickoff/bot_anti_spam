@@ -50,6 +50,14 @@ class Config:
             errors.append("BOT_TOKEN manquant dans .env")
         if self.AI_ENABLED and (not self.GEMINI_API_KEY or self.GEMINI_API_KEY == "your_gemini_api_key_here"):
             errors.append("GEMINI_API_KEY manquant alors que AI_ENABLED=true")
+        if self.VOTES_TO_BAN <= 0:
+            errors.append("VOTES_TO_BAN doit être supérieur à 0")
+        if self.VOTES_TO_SAFE <= 0:
+            errors.append("VOTES_TO_SAFE doit être supérieur à 0")
+        if self.REVIEW_TIMEOUT_HOURS <= 0:
+            errors.append("REVIEW_TIMEOUT_HOURS doit être supérieur à 0")
+        if self.MIN_REQUEST_INTERVAL < 0:
+            errors.append("MIN_REQUEST_INTERVAL ne peut pas être négatif")
         if errors:
             raise ValueError("Configuration invalide : " + "; ".join(errors))
 
